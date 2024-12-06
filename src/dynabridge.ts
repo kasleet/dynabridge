@@ -25,14 +25,14 @@ type DynaBridgeEntity<T = any> = {
 
 type EntityCommands<T extends Record<string, DynaBridgeEntity<any>>> = {
   [K in keyof T]: T[K] & {
-  findById: (id: ID) => Promise<T[K] extends DynaBridgeEntity<infer U> ? U | undefined : never>;
-  findByIds: (ids: ID[]) => Promise<(T[K] extends DynaBridgeEntity<infer U> ? U : never)[]>;
-  findAll: () => Promise<(T[K] extends DynaBridgeEntity<infer U> ? U : never)[]>;
-  save: (entity: T[K] extends DynaBridgeEntity<infer U> ? U : never) => Promise<void>;
-  saveAll: (entity: (T[K] extends DynaBridgeEntity<infer U> ? U : never)[]) => Promise<void>;
-  delete: (entity: T[K] extends DynaBridgeEntity<infer U> ? U : never) => Promise<void>;
-  deleteById: (id: ID) => Promise<void>;
-};
+    findById: (id: ID) => Promise<T[K] extends DynaBridgeEntity<infer U> ? U | undefined : never>;
+    findByIds: (ids: ID[]) => Promise<(T[K] extends DynaBridgeEntity<infer U> ? U : never)[]>;
+    findAll: () => Promise<(T[K] extends DynaBridgeEntity<infer U> ? U : never)[]>;
+    save: (entity: T[K] extends DynaBridgeEntity<infer U> ? U : never) => Promise<void>;
+    saveAll: (entity: (T[K] extends DynaBridgeEntity<infer U> ? U : never)[]) => Promise<void>;
+    delete: (entity: T[K] extends DynaBridgeEntity<infer U> ? U : never) => Promise<void>;
+    deleteById: (id: ID) => Promise<void>;
+  };
 };
 
 class Dynabridge<T extends Record<string, DynaBridgeEntity<any>>> {
@@ -64,18 +64,18 @@ class Dynabridge<T extends Record<string, DynaBridgeEntity<any>>> {
   public async transaction(
     operations: {
       [K in keyof T]:
-      | { action: 'Put'; type: K; entity: T[K] extends DynaBridgeEntity<infer U> ? U : never }
-      | {
-      action: 'Update';
-      type: K;
-      entity: T[K] extends DynaBridgeEntity<infer U> ? U : never;
-      updateExpression: string;
-      conditionExpression?: string;
-      expressionAttributeNames?: Record<string, string>;
-      expressionAttributeValues?: Record<string, NativeAttributeValue>;
-      returnValuesOnConditionCheckFailure?: ReturnValuesOnConditionCheckFailure;
-    }
-      | { action: 'Delete'; type: K; entity: T[K] extends DynaBridgeEntity<infer U> ? U : never };
+        | { action: 'Put'; type: K; entity: T[K] extends DynaBridgeEntity<infer U> ? U : never }
+        | {
+            action: 'Update';
+            type: K;
+            entity: T[K] extends DynaBridgeEntity<infer U> ? U : never;
+            updateExpression: string;
+            conditionExpression?: string;
+            expressionAttributeNames?: Record<string, string>;
+            expressionAttributeValues?: Record<string, NativeAttributeValue>;
+            returnValuesOnConditionCheckFailure?: ReturnValuesOnConditionCheckFailure;
+          }
+        | { action: 'Delete'; type: K; entity: T[K] extends DynaBridgeEntity<infer U> ? U : never };
     }[keyof T][]
   ): Promise<void> {
     const transactItems: TransactWriteCommandInput['TransactItems'] = operations.map(

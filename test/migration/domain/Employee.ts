@@ -1,4 +1,4 @@
-type EmployeeRole = 'Manager' | 'Sales' | 'Developer' | 'HR' | 'Other'
+type EmployeeRole = 'Manager' | 'Sales' | 'Developer' | 'HR' | 'Other';
 
 interface Employee {
   companyId: string;
@@ -8,4 +8,4 @@ interface Employee {
   role: EmployeeRole;
 }
 
-export { Employee, EmployeeRole }
+export { Employee, EmployeeRole };

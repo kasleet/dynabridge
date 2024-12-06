@@ -8,6 +8,6 @@ interface CompanyV1 {
 
 export const companyEntity: DynaBridgeEntity<Company> = {
   tableName: 'company-739ab4',
-  id: "id",
+  id: 'id',
   migrations: (v1: CompanyV1) => ({ ...v1, industry: 'Other' })
 };

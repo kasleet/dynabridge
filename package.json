@@ -4,7 +4,11 @@
   "author": "Kassem Tohme",
   "license": "MIT",
   "description": "Simple and light-weight ORM mapper for AWS DynamoDB",
-  "keywords": ["DynamoDB", "ORM", "AWS"],
+  "keywords": [
+    "DynamoDB",
+    "ORM",
+    "AWS"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/kasleet/dynabridge"
@@ -17,7 +21,9 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "format": "prettier --write .",
     "format:check": "prettier --check .",

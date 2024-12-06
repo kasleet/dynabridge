@@ -18,9 +18,12 @@ interface EmployeeV2 {
 
 export const employeeEntity: DynaBridgeEntity<Employee> = {
   tableName: 'employee-739ab4',
-  id: ["companyId", "employeeNumber"],
+  id: ['companyId', 'employeeNumber'],
   migrations: [
     (v1: EmployeeV1) => ({ ...v1, role: 'Other' }),
-    (v2: EmployeeV2) => ({ ...v2, role: (v2.role === 'Human Resources' ? 'HR' : v2.role) as EmployeeRole })
+    (v2: EmployeeV2) => ({
+      ...v2,
+      role: (v2.role === 'Human Resources' ? 'HR' : v2.role) as EmployeeRole
+    })
   ]
 };
