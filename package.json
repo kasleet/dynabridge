@@ -1,0 +1,39 @@
+{
+  "name": "dynabridge",
+  "version": "0.1.0",
+  "author": "Kassem Tohme",
+  "license": "Apache-2.0",
+  "description": "Simple and light-weight ORM mapper for AWS DynamoDB",
+  "keywords": ["DynamoDB", "ORM", "AWS"],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest",
+    "build": "tsc -p tsconfig.json",
+    "clean": "rimraf dist",
+    "prepack": "npm run clean && npm run build"
+  },
+  "peerDependencies": {
+    "@aws-sdk/client-dynamodb": "3.699.0",
+    "@aws-sdk/lib-dynamodb": "3.699.0",
+    "@aws-sdk/types": "3.696.0",
+    "@aws-sdk/util-dynamodb": "3.699.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "aws-sdk-client-mock": "4.1.0",
+    "prettier": "3.4.2",
+    "rimraf": "6.0.1",
+    "vite": "6.0.1",
+    "vitest": "2.1.6"
+  }
+}
