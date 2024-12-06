@@ -19,7 +19,7 @@ Alex DeBrie has told you [over](https://www.youtube.com/watch?v=BnDKD_Zv0og&t=78
 
 After attending multiple re:Invents, watching every YouTube video on Single Table Design, 
 and surviving a two-week bootcamp on how to properly overload Global Secondary Indexes, 
-you might finally be able to implement a simple to-do application using DynamoDB. 
+you might finally be able to implement a simple to-do application using the _DynamoDB_ way. 
 But the moment you need to add a feature with a new access pattern or explain it all to a colleague, 
 it feels like you’re on the verge of a nervous breakdown.
 
