@@ -1,5 +1,5 @@
 <p align="center">
-  <img alt="dynabridge logo" height="150px" src="./static/logo.jpg" />  
+  <img alt="dynabridge logo" height="150px" src="./static/logo.png" />  
 </p>
 <h1 align="center">DynaBridge</h1>
 
