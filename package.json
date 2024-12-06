@@ -2,7 +2,7 @@
   "name": "dynabridge",
   "version": "0.1.0",
   "author": "Kassem Tohme",
-  "license": "Apache-2.0",
+  "license": "MIT",
   "description": "Simple and light-weight ORM mapper for AWS DynamoDB",
   "keywords": ["DynamoDB", "ORM", "AWS"],
   "repository": {
