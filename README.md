@@ -200,7 +200,7 @@ await db.transaction([
     action: 'Update',
     type: 'employee',
     entity: someEmployee2,
-    updateExpression: 'SET #firstName = :newName',
+    updateExpression: 'SET firstName = :newName',
     expressionAttributeValues: { ':newName': 'Charlie' }
   },
   { action: 'Delete', type: 'company', entity: someCompany2 }
