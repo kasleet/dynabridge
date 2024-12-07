@@ -144,8 +144,8 @@ await db.entities.employee.saveBatch([someEmployee1, someEmployee2]);
 #### Fetch entity by id
 
 ```typescript
-const company: Company = await db.entities.company.findById('c1');
-const employee: Employee = await db.entities.employee.findById(['c1', 1]);
+const company: Company | undefined = await db.entities.company.findById('c1');
+const employee: Employee | undefined = await db.entities.employee.findById(['c1', 1]);
 ```
 
 #### Fetch multiple entities by id
@@ -158,8 +158,8 @@ const employees: Employee[] = await db.entities.employee.findByIds([['c1', 1], [
 #### Fetch all entities
 
 ```typescript
-const companies: Company[] = await db.entities.company.findAll();
-const employees: Employee[] = await db.entities.employee.findAll();
+const allCompanies: Company[] = await db.entities.company.findAll();
+const allEmployees: Employee[] = await db.entities.employee.findAll();
 ```
 
 #### Delete entity
