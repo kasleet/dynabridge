@@ -29,7 +29,7 @@ In the end, most of us know that DynamoDB is just not the right tool for our use
 when requirements and access patterns change) but its just
 so simple and dirt cheap - especially when building a serverless application using Lambda.
 
-This library is here to ease the pain of abusing DynamoDB as a relational database. It won’t make it _right_,
+This library is here to ease the pain of abusing DynamoDB as a "relational database". It won’t make it _right_,
 but it might make it a bit less painful by bridging the gap.
 
 ## What's the difference to other DynamoDB wrappers or ORMs?
