@@ -262,6 +262,9 @@ interface Employee {
 import { DynaBridgeEntity } from 'dynabridge';
 import { Employee } from '../domain/types.ts';
 
+/* It is recommended to keep a "hard" copy of the schema versions for type-safety. 
+   One could possibly use things like intersection types, Omit or Partial, but this
+   will not always work and makes reasoning about the different schemas harder. */
 interface EmployeeV1 {
   companyId: string;
   employeeNumber: number;
