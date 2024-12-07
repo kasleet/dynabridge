@@ -71,16 +71,16 @@ import { DynaBridgeEntity } from 'dynabridge';
 import { Company, Employee } from '../domain/types.ts';
 
 const companyEntity: DynaBridgeEntity<Company> = {
-  tableName: 'company-table-739ab4',
+  tableName: 'company',
   id: 'id'
 };
 
 const employeeEntity: DynaBridgeEntity<Employee> = {
-  tableName: 'employee-table-abf382',
+  tableName: 'employee',
   id: ['companyId', 'employeeNumber']
 };
 
-export const dbClient = new DynaBridge({
+export const db = new DynaBridge({
   company: companyEntity,
   employee: employeeEntity
 });
@@ -97,7 +97,7 @@ are outside DynaBridge scope and preferably done using some IaC tool.
 
 ```typescript
 // ./src/index.ts
-import { dbClient } from './repository';
+import { db } from './repository';
 
 const someCompany1: Company = {
   id: 'c1',
@@ -127,70 +127,70 @@ const someEmployee2: Employee = {
 #### Write single entity
 
 ```typescript
-await dbClient.entities.company.save(someCompany1);
-await dbClient.entities.employee.save(someEmployee1);
+await db.entities.company.save(someCompany1);
+await db.entities.employee.save(someEmployee1);
 ```
 
 #### Write multiple entities
 
 ```typescript
-await dbClient.entities.company.saveBatch([someCompany1, someCompany2]);
-await dbClient.entities.employee.saveBatch([someEmployee1, someEmployee2]);
+await db.entities.company.saveBatch([someCompany1, someCompany2]);
+await db.entities.employee.saveBatch([someEmployee1, someEmployee2]);
 ```
 
 #### Fetch entity by id
 
 ```typescript
-const company: Company = await dbClient.entities.company.findById('c1');
-const employee: Employee = await dbClient.entities.company.findById(['c1', 1]);
+const company: Company = await db.entities.company.findById('c1');
+const employee: Employee = await db.entities.employee.findById(['c1', 1]);
 ```
 
 #### Fetch multiple entities by id
 
 ```typescript
-const companies: Company[] = await dbClient.entities.company.findByIds(['c1', 'c2']);
-const employees: Employee[] = await dbClient.entities.employee.findByIds([['c1', 1], ['c1', 2]]);
+const companies: Company[] = await db.entities.company.findByIds(['c1', 'c2']);
+const employees: Employee[] = await db.entities.employee.findByIds([['c1', 1], ['c1', 2]]);
 ```
 
 #### Fetch all entities
 
 ```typescript
-const companies: Company[] = await dbClient.entities.company.findAll();
-const employees: Employee[] = await dbClient.entities.employee.findAll();
+const companies: Company[] = await db.entities.company.findAll();
+const employees: Employee[] = await db.entities.employee.findAll();
 ```
 
 #### Delete entity
 
 ```typescript
-await dbClient.entities.company.delete(someCompany1);
-await dbClient.entities.employee.delete(someEmployee1);
+await db.entities.company.delete(someCompany1);
+await db.entities.employee.delete(someEmployee1);
 ```
 
 #### Delete multiple entities
 
 ```typescript
-await dbClient.entities.company.deleteBatch([someCompany1, someCompany2]);
-await dbClient.entities.employee.deleteBatch([someEmployee1, someEmployee2]);
+await db.entities.company.deleteBatch([someCompany1, someCompany2]);
+await db.entities.employee.deleteBatch([someEmployee1, someEmployee2]);
 ```
 
 #### Delete entity by id
 
 ```typescript
-await dbClient.entities.company.deleteById('c1');
-await dbClient.entities.employee.deleteById(['c1', 1]);
+await db.entities.company.deleteById('c1');
+await db.entities.employee.deleteById(['c1', 1]);
 ```
 
 #### Delete multiple entities by id
 
 ```typescript
-await dbClient.entities.company.deleteByIds(['c1', 'c2']);
-await dbClient.entities.employee.deleteByIds([['c1', 1], ['c1', 2]]);
+await db.entities.company.deleteByIds(['c1', 'c2']);
+await db.entities.employee.deleteByIds([['c1', 1], ['c1', 2]]);
 ```
 
 #### Transaction
 
 ```typescript
-await dbClient.transaction([
+await db.transaction([
   { action: 'Put', type: 'company', entity: someCompany1 },
   { action: 'Put', type: 'employee', entity: someEmployee1 },
   {
@@ -203,3 +203,123 @@ await dbClient.transaction([
   { action: 'Delete', type: 'company', entity: someCompany2 }
 ]);
 ```
+
+## Schema migrations
+
+One major pain point with DynamoDB and with NoSQL in general is schema versioning and migration. 
+
+An `Employee` entity is written to the table today. A few days later, new feature requirements mandate that 
+employees must have a mandatory `role` field. To accommodate this, the `Employee` type and the application are 
+updated accordingly. However, when loading an existing employee record written before this change, the role field 
+will be missing. Attempting to access this field without proper handling can lead to unexpected behavior, 
+such as application crashes, inconsistent data processing or inaccurate presentation.
+
+In relational databases, schema migrations are often used to handle such changes - there are plenty of solutions and
+tools (Liquibase, Flyway). They will make sure to migrate all the data, which ensures
+that all entities adhere to the latest schema. With NoSQL, by design, schema migrations are hard. 
+
+## On-the-fly migrations
+
+DynaBridge addresses this challenge by applying on-the-fly migrations. 
+
+When entities are written to the database, they are stored with their current version (starting at 1). 
+When reading these entities, DynaBridge compares them to the latest schema 
+version and, if necessary, applies the corresponding migration functions. This ensures that the application always works with 
+entities that conform to the current schema, maintaining consistency and preventing the issues mentioned above.
+When a migrated entity is saved back to the database, its version is updated to the latest version. 
+This guarantees that changes to the entity are properly stored and ensures that migration functions will not need to be
+applied again when the entity is loaded at a later time.
+
+On-the-fly migrations are simple, resource-efficient, and ideal when there are no downstream processes that depend 
+on the database always containing the latest schema.
+
+### Example
+
+**Current item in DynamoDB table `employee`**
+```json
+{ "companyId": "c1", "employeeNumber": 1, "firstName": "John", "lastName": "Doe", "_version": 1, "_updated_at": "..." }
+```
+
+**Updated Employee type**
+
+```typescript
+// src/domain/types.ts
+type EmployeeRole = 'Manager' | 'Sales' | 'Developer' | 'HR' | 'Other';
+
+interface Employee {
+  companyId: string;
+  employeeNumber: number;
+  firstName: string;
+  lastName: string;
+  role: EmployeeRole;
+}
+```
+
+**Updated DynaBridge Employee entity**
+
+```typescript
+// src/repository/index.ts
+import { DynaBridgeEntity } from 'dynabridge';
+import { Employee } from '../domain/types.ts';
+
+interface EmployeeV1 {
+  companyId: string;
+  employeeNumber: number;
+  firstName: string;
+  lastName: string;
+}
+
+export const employeeEntity: DynaBridgeEntity<Employee> = {
+  tableName: 'employee',
+  id: ['companyId', 'employeeNumber'],
+  migrations: [
+    (v1: EmployeeV1) => ({ ...v1, role: 'Other' })
+  ]
+}
+```
+
+When fetching the item using the `.findById`, `.findByIds` or `.findAll` API, the result would be
+```typescript
+const employee: Employee = await db.entities.employee.findById(['c1', 1]);
+console.log(employee) // { companyId: "c1", employeeNumber: 1, firstName: "John", lastName: "Doe", role: "Other" }
+```
+
+Saving the entity using the `.save`, `.saveBatch` or `.transaction` will overwrite the existing item in the table with the updated version
+```typescript
+await db.entities.employee.save(employee);
+```
+
+**Updated item in DynamoDB table `employee`**
+```json
+{ "companyId": "c1", "employeeNumber": 1, "firstName": "John", "lastName": "Doe", "role": "Other", "_version": 2, "_updated_at": "..." }
+```
+
+## DynaBridge API details
+
+DynaBridge API is using the following DynamoDB API / SDK commands
+
+* `.save`
+  * Uses `DynamoDBDocumentClient` and `PutCommand`
+* `.saveBatch`
+  * Uses `DynamoDBDocumentClient` and `BatchWriteCommand`
+  * `UnprocessedItems` retries  = 3
+  * batch_size = 100
+* `.findById`
+  * Uses `DynamoDBClient` and `GetItemCommand` 
+* `.findByIds`: 
+  * Uses `DynamoDBClient`, and `BatchGetItemCommandInput`
+  * `UnprocessedKeys` retries  = 3
+  * batch_size = 100
+  * All requested items will be returned (no pagination)
+* `.findAll`: 
+  * Uses `DynamoDBDocumentClient` and `ScanCommand`
+  * sequentiell (`TotalSegments` = 1)
+  * All requested items will be returned (no pagination)
+* `.delete` and `.deleteById`
+  * Uses `DynamoDBClient` and `DeleteItemCommand` 
+* `.deleteBatch` and `.deleteByIds`
+  * Uses `DynamoDBClient` and `DeleteItemCommand` 
+  * `UnprocessedItems` retries  = 3
+  * batch_size = 100
+* `.transaction`
+  * Uses `DynamoDBDocumentClient` and `TransactWriteCommand`

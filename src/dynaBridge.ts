@@ -1,5 +1,7 @@
 import { DynamoDBClient, ReturnValuesOnConditionCheckFailure } from '@aws-sdk/client-dynamodb';
+import { NativeAttributeValue, TransactWriteCommandInput } from '@aws-sdk/lib-dynamodb';
 import { DynamoDBClientConfig } from '@aws-sdk/client-dynamodb/dist-types/DynamoDBClient';
+import { DynaBridgeEntity, ID, Migrations, SimpleID } from './types';
 import {
   deleteBatchItem,
   deleteItem,
@@ -10,10 +12,8 @@ import {
   transactWrite,
   writeBatchItem
 } from './dynamodb';
-import { NativeAttributeValue, TransactWriteCommandInput } from '@aws-sdk/lib-dynamodb';
-import { DynaBridgeEntity, ID, Migrations, SimpleID } from './types';
 
-type EntityCommands<T extends Record<string, DynaBridgeEntity<any>>> = {
+type EntityCommands<T extends Record<string, DynaBridgeEntity>> = {
   [K in keyof T]: T[K] & {
     findById: (id: ID) => Promise<T[K] extends DynaBridgeEntity<infer U> ? U | undefined : never>;
     findByIds: (ids: ID[]) => Promise<(T[K] extends DynaBridgeEntity<infer U> ? U : never)[]>;
@@ -27,7 +27,7 @@ type EntityCommands<T extends Record<string, DynaBridgeEntity<any>>> = {
   };
 };
 
-class DynaBridge<T extends Record<string, DynaBridgeEntity<any>>> {
+class DynaBridge<T extends Record<string, DynaBridgeEntity>> {
   public entities: EntityCommands<T>;
 
   private readonly _entityTypes: T;
