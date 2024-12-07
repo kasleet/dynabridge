@@ -1,6 +1,6 @@
 {
   "name": "dynabridge",
-  "version": "0.1.1",
+  "version": "0.1.3",
   "author": "Kassem Tohme",
   "license": "MIT",
   "description": "Simple and light-weight TypeScript entity-focused wrapper for DynamoDB",
@@ -29,7 +29,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && tsc-alias --resolve-full-paths -p tsconfig.json",
     "clean": "rimraf dist",
     "prepack": "npm run clean && npm run build"
   },
