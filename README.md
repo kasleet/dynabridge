@@ -42,7 +42,7 @@ with a minimal footprint, while still providing all the essential features you n
 ## Key features and selling points
 
 - No use of decorators - keeping your types and interfaces clean
-- (Hopefully) extremely easy to use
+- Extremely easy to use
 - Type-safe CRUD for your data model
 - On-the-fly migrations
 
