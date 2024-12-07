@@ -33,14 +33,14 @@ but it might make it a bit less painful by bridging the gap.
 ## What's the difference to other DynamoDB wrappers or ORMs?
 
 There are plenty of other ORMs and wrappers for DynamoDB out there.
-Many of them seem abandoned, lack traction, or just feel overly complex.
-The goal of this library is to keep things as simple as possible, with a minimal footprint,
-while still providing all the essential features you need for your CRUD operations.
+Many of them seem abandoned, lack traction, or just feel overly complex. There are definitely useful libraries out there,
+but they have a different goal in mind. The aim of this library is to keep things as simple as possible, 
+with a minimal footprint, while still providing all the essential features you need for your CRUD operations.
 
 ## Key features and selling points
 
 - No use of decorators - keeping your types and interfaces clean
-- Extremely easy to use
+- (Hopefully) extremely easy to use
 - Type-safe CRUD for your data model
 - On-the-fly migrations
 
