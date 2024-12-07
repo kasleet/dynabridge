@@ -2,12 +2,12 @@ import { beforeEach, expect, test, vi } from 'vitest';
 import { BatchGetItemCommand, DynamoDBClient, GetItemCommand } from '@aws-sdk/client-dynamodb';
 import { mockClient } from 'aws-sdk-client-mock';
 import { marshall } from '@aws-sdk/util-dynamodb';
-import { Dynabridge } from '../src';
+import { DynaBridge } from '../src';
 import { companyEntity } from './migration/repository/companyEntity';
 import { employeeEntity } from './migration/repository/employeeEntity';
 import { DynamoDBDocument, ScanCommand } from '@aws-sdk/lib-dynamodb';
 
-const dynamORM = new Dynabridge({
+const dynamORM = new DynaBridge({
   company: companyEntity,
   employee: employeeEntity
 });
@@ -161,9 +161,7 @@ test('return latest version of all persisted entities', async () => {
     _updated_at: '2020-01-01T00:00:00.000Z'
   };
 
-  dynamoDbDocumentClientMock
-    .on(ScanCommand)
-    .resolves({ Items: [persistedCompany1, persistedCompanyLatest] });
+  dynamoDbDocumentClientMock.on(ScanCommand).resolves({ Items: [persistedCompany1, persistedCompanyLatest] });
 
   const allCompanies = await dynamORM.entities.company.findAll();
 

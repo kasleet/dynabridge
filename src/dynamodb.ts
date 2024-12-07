@@ -1,3 +1,4 @@
+import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
 import {
   BatchGetItemCommand,
   BatchGetItemCommandInput,
@@ -5,7 +6,6 @@ import {
   DynamoDBClient,
   GetItemCommand
 } from '@aws-sdk/client-dynamodb';
-import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
 import {
   BatchWriteCommandInput,
   DynamoDBDocument,
@@ -175,6 +175,48 @@ export const writeBatchItem = async <T extends Record<string, any>>(
   }
 };
 
+export const deleteBatchItem = async <T extends Record<string, any>>(
+  ddbClient: DynamoDBClient,
+  tableName: string,
+  keys: object[]
+): Promise<void> => {
+  if (keys.length === 0) {
+    return;
+  }
+
+  const dynamoDocClient = DynamoDBDocument.from(ddbClient);
+
+  const chunks = getChunks(keys);
+
+  for (const chunk of chunks) {
+    let chunkTry = 0;
+    let chunkDeletedSuccessfully = false;
+    let itemsToDelete: BatchWriteCommandInput = {
+      RequestItems: {
+        [tableName]: chunk.map((key) => ({
+          DeleteRequest: {
+            Key: key
+          }
+        }))
+      }
+    };
+
+    while (!chunkDeletedSuccessfully) {
+      if (chunkTry < 3) {
+        const res = await dynamoDocClient.batchWrite(itemsToDelete);
+        if (res.UnprocessedItems && Object.keys(res.UnprocessedItems).length > 0) {
+          itemsToDelete = { RequestItems: res.UnprocessedItems };
+          chunkTry = chunkTry + 1;
+        } else {
+          chunkDeletedSuccessfully = true;
+        }
+      } else {
+        throw new Error('Failed after 3 retries writing chunk.');
+      }
+    }
+  }
+};
+
 export const scan = async <T>(
   ddbClient: DynamoDBClient,
   tableName: string
@@ -219,11 +261,7 @@ export const transactWrite = async <T>(
   });
 };
 
-export const deleteItem = async <T>(
-  ddbClient: DynamoDBClient,
-  tableName: string,
-  key: object
-): Promise<void> => {
+export const deleteItem = async <T>(ddbClient: DynamoDBClient, tableName: string, key: object): Promise<void> => {
   const command = new DeleteItemCommand({
     TableName: tableName,
     Key: marshall(key)

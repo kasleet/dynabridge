@@ -1,13 +1,8 @@
 import { beforeEach, expect, test, vi } from 'vitest';
-import {
-  BatchGetItemCommand,
-  DeleteItemCommand,
-  DynamoDBClient,
-  GetItemCommand
-} from '@aws-sdk/client-dynamodb';
+import { BatchGetItemCommand, DeleteItemCommand, DynamoDBClient, GetItemCommand } from '@aws-sdk/client-dynamodb';
 import { mockClient } from 'aws-sdk-client-mock';
 import { marshall } from '@aws-sdk/util-dynamodb';
-import { Dynabridge } from '../src';
+import { DynaBridge } from '../src';
 import { companyEntity } from './simple/repository/companyEntity';
 import { employeeEntity } from './simple/repository/employeeEntity';
 import { Company } from './simple/domain/Company';
@@ -20,7 +15,7 @@ import {
   TransactWriteCommand
 } from '@aws-sdk/lib-dynamodb';
 
-const dynamORM = new Dynabridge({
+const dynamORM = new DynaBridge({
   company: companyEntity,
   employee: employeeEntity
 });
@@ -79,7 +74,7 @@ test('save all entities', async () => {
 
   dynamoDbDocumentClientMock.on(BatchWriteCommand).resolves(Promise.resolve({}));
 
-  await dynamORM.entities.company.saveAll([company1, company2]);
+  await dynamORM.entities.company.saveBatch([company1, company2]);
 
   expect(dynamoDbDocumentClientMock.calls().at(0)?.firstArg.input.RequestItems).toEqual({
     [companyEntity.tableName]: [
@@ -191,9 +186,7 @@ test('find all entities', async () => {
     _updated_at: '2020-01-01T00:00:00.000Z'
   };
 
-  dynamoDbDocumentClientMock
-    .on(ScanCommand)
-    .resolves({ Items: [persistedCompany1, persistedCompany2] });
+  dynamoDbDocumentClientMock.on(ScanCommand).resolves({ Items: [persistedCompany1, persistedCompany2] });
 
   const allCompanies = await dynamORM.entities.company.findAll();
 
@@ -223,9 +216,7 @@ test('delete entities', async () => {
   await dynamORM.entities.employee.deleteById(['company-1', 1]);
   await dynamORM.entities.employee.delete(employee);
 
-  expect(dynamoDbClientMock.calls().at(0)?.firstArg.input.Key).toEqual(
-    marshall({ id: 'company-1' })
-  );
+  expect(dynamoDbClientMock.calls().at(0)?.firstArg.input.Key).toEqual(marshall({ id: 'company-1' }));
   expect(dynamoDbClientMock.calls().at(1)?.firstArg.input.Key).toEqual(
     marshall({ companyId: 'company-1', employeeNumber: 1 })
   );

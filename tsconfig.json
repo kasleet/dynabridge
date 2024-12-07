@@ -1,9 +1,9 @@
 {
   "compilerOptions": {
-    "module": "esnext",
+    "module": "ES2022",
     "outDir": "./dist",
-    "target": "esnext",
-    "lib": ["esnext"],
+    "target": "ES2022",
+    "lib": ["ES2022"],
     "declaration": true,
     "declarationDir": "./dist",
     "strict": true,

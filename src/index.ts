@@ -1,1 +1,1 @@
-export * from './dynabridge';
+export * from './dynaBridge';
