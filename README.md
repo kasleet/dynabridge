@@ -91,7 +91,7 @@ with a hash key with name `id` of type `string`. On the other hand, an `Employee
 identified by the combination of the `companyId` and its `employeeNumber`, therefore its
 DynamoDB table needs to have a hash key (`companyId` of type string) and a
 range key (`employeeNumber`, type `number`). Setting up and deploying the DynamoDB tables
-are outside DynaBridge scope and preferably done using some IaC tool.
+are outside DynaBridge scope and preferably done using some IaC tooling.
 
 ### Using the client in your application code
 
