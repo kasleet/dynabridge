@@ -91,19 +91,21 @@ class DynaBridge<T extends Record<string, DynaBridgeEntity>> {
             _version: version,
             _updated_at: new Date().toISOString()
           };
-          return { TableName: tableName, Item: item };
+          return { Put: { TableName: tableName, Item: item } };
         case 'Update':
           return {
-            TableName: tableName,
-            Key: this._getKeyFromEntity(type, entity),
-            UpdateExpression: operation.updateExpression,
-            ConditionExpression: operation.conditionExpression,
-            ExpressionAttributeNames: operation.expressionAttributeNames,
-            ExpressionAttributeValues: operation.expressionAttributeValues,
-            ReturnValuesOnConditionCheckFailure: operation.returnValuesOnConditionCheckFailure
+            Update: {
+              TableName: tableName,
+              Key: this._getKeyFromEntity(type, entity),
+              UpdateExpression: operation.updateExpression,
+              ConditionExpression: operation.conditionExpression,
+              ExpressionAttributeNames: operation.expressionAttributeNames,
+              ExpressionAttributeValues: operation.expressionAttributeValues,
+              ReturnValuesOnConditionCheckFailure: operation.returnValuesOnConditionCheckFailure
+            }
           };
         case 'Delete':
-          return { TableName: tableName, Key: this._getKeyFromEntity(type, entity) };
+          return { Delete: { TableName: tableName, Key: this._getKeyFromEntity(type, entity) } };
         default:
           throw new Error(`Invalid action type: ${action}`);
       }
@@ -126,17 +128,6 @@ class DynaBridge<T extends Record<string, DynaBridgeEntity>> {
     return this._migrate(getItemRes.entity, getItemRes.version, migrations);
   }
 
-  private async _findAll<K extends keyof T>(
-    ddbClient: DynamoDBClient,
-    type: K
-  ): Promise<(T[K] extends DynaBridgeEntity<infer U> ? U : never)[]> {
-    const scanResult = await scan(ddbClient, this._entityTypes[type].tableName);
-    const migrations = this._entityTypes[type].migrations;
-    return scanResult.map(
-      (res) => this._migrate(res.entity, res.version, migrations) as T[K] extends DynaBridgeEntity<infer U> ? U : never
-    );
-  }
-
   private async _findByIds<K extends keyof T>(
     ddbClient: DynamoDBClient,
     type: K,
@@ -149,6 +140,17 @@ class DynaBridge<T extends Record<string, DynaBridgeEntity>> {
     );
     const migrations = this._entityTypes[type].migrations;
     return getBatchResult.map(
+      (res) => this._migrate(res.entity, res.version, migrations) as T[K] extends DynaBridgeEntity<infer U> ? U : never
+    );
+  }
+
+  private async _findAll<K extends keyof T>(
+    ddbClient: DynamoDBClient,
+    type: K
+  ): Promise<(T[K] extends DynaBridgeEntity<infer U> ? U : never)[]> {
+    const scanResult = await scan(ddbClient, this._entityTypes[type].tableName);
+    const migrations = this._entityTypes[type].migrations;
+    return scanResult.map(
       (res) => this._migrate(res.entity, res.version, migrations) as T[K] extends DynaBridgeEntity<infer U> ? U : never
     );
   }

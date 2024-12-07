@@ -82,7 +82,7 @@ export const getBatchItem = async <T>(
     let itemsToGet: BatchGetItemCommandInput = {
       RequestItems: {
         [tableName]: {
-          Keys: idChunk.map((id) => marshall({ id }))
+          Keys: idChunk.map((id) => marshall(id))
         }
       }
     };
