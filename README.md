@@ -67,7 +67,7 @@ export interface Employee {
 
 ```typescript
 // src/repository/index.ts
-import { DynaBridgeEntity } from 'dynabridge';
+import { DynaBridge, DynaBridgeEntity } from 'dynabridge';
 import { Company, Employee } from '../domain/types.ts';
 
 const companyEntity: DynaBridgeEntity<Company> = {
