@@ -100,6 +100,7 @@ are outside DynaBridge scope and preferably done using some IaC tooling.
 ```typescript
 // ./src/index.ts
 import { db } from './repository';
+import { Company, Employee } from './domain/types';
 
 const someCompany1: Company = {
   id: 'c1',
