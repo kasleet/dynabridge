@@ -70,7 +70,7 @@ export interface Employee {
 ```typescript
 // src/repository/index.ts
 import { DynaBridge, DynaBridgeEntity } from 'dynabridge';
-import { Company, Employee } from '../domain/types.ts';
+import { Company, Employee } from '../domain/types';
 
 const companyEntity: DynaBridgeEntity<Company> = {
   tableName: 'company',
@@ -262,7 +262,7 @@ interface Employee {
 ```typescript
 // src/repository/index.ts
 import { DynaBridgeEntity } from 'dynabridge';
-import { Employee } from '../domain/types.ts';
+import { Employee } from '../domain/types';
 
 /* It is recommended to keep a "hard" copy of the schema versions for type-safety. 
    One could possibly use things like intersection types, Omit or Partial, but this
