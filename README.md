@@ -9,6 +9,8 @@
 
 Simple and light-weight TypeScript entity-focused wrapper for DynamoDB
 
+Install via npm: `npm install dynabridge`
+
 ## Who is this intended for?
 
 You have a full stack web application or some other Node server written in TypeScript, and you’re kind of
