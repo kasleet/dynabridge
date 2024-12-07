@@ -249,7 +249,7 @@ on the database always containing the latest schema.
 // src/domain/types.ts
 type EmployeeRole = 'Manager' | 'Sales' | 'Developer' | 'HR' | 'Other';
 
-interface Employee {
+export interface Employee {
   companyId: string;
   employeeNumber: number;
   firstName: string;
@@ -286,13 +286,13 @@ export const employeeEntity: DynaBridgeEntity<Employee> = {
 
 When fetching the item using the `.findById`, `.findByIds` or `.findAll` API, the result would be
 ```typescript
-const employee: Employee = await db.entities.employee.findById(['c1', 1]);
+const employee: Employee | undefined = await db.entities.employee.findById(['c1', 1]);
 console.log(employee) // { companyId: "c1", employeeNumber: 1, firstName: "John", lastName: "Doe", role: "Other" }
 ```
 
 Saving the entity using the `.save`, `.saveBatch` or `.transaction` will overwrite the existing item in the table with the updated version
 ```typescript
-await db.entities.employee.save(employee);
+await db.entities.employee.save(employee!);
 ```
 
 **Updated item in DynamoDB table `employee`**
