@@ -266,41 +266,49 @@ test('save multiple entities in transaction', async () => {
 
   expect(dynamoDbDocumentClientMock.calls().at(0)?.firstArg.input.TransactItems).toEqual([
     {
-      TableName: 'company-739ab4',
-      Item: {
-        id: 'company-1',
-        name: 'Test Company',
-        _version: 1,
-        _updated_at: '2020-01-01T00:00:00.000Z'
+      Put: {
+        TableName: 'company-739ab4',
+        Item: {
+          id: 'company-1',
+          name: 'Test Company',
+          _version: 1,
+          _updated_at: '2020-01-01T00:00:00.000Z'
+        }
       }
     },
     {
-      TableName: 'employee-739ab4',
-      Item: {
-        companyId: 'company-1',
-        employeeNumber: 1,
-        firstName: 'Foo',
-        lastName: 'Bar',
-        _version: 1,
-        _updated_at: '2020-01-01T00:00:00.000Z'
+      Put: {
+        TableName: 'employee-739ab4',
+        Item: {
+          companyId: 'company-1',
+          employeeNumber: 1,
+          firstName: 'Foo',
+          lastName: 'Bar',
+          _version: 1,
+          _updated_at: '2020-01-01T00:00:00.000Z'
+        }
       }
     },
     {
-      TableName: 'employee-739ab4',
-      Key: {
-        companyId: 'company-1',
-        employeeNumber: 2
-      },
-      UpdateExpression: 'SET #firstName = :newName',
-      ExpressionAttributeValues: {
-        ':newName': 'Charlie'
+      Update: {
+        TableName: 'employee-739ab4',
+        Key: {
+          companyId: 'company-1',
+          employeeNumber: 2
+        },
+        UpdateExpression: 'SET #firstName = :newName',
+        ExpressionAttributeValues: {
+          ':newName': 'Charlie'
+        }
       }
     },
     {
-      TableName: 'employee-739ab4',
-      Key: {
-        companyId: 'company-1',
-        employeeNumber: 3
+      Delete: {
+        TableName: 'employee-739ab4',
+        Key: {
+          companyId: 'company-1',
+          employeeNumber: 3
+        }
       }
     }
   ]);
