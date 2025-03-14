@@ -32,7 +32,7 @@ export const getItem = async <T>(
     const { _version, _updated_at, ...entity } = persistedItem;
     return {
       entity: entity as T,
-      version: _version
+      version: _version ?? 1
     };
   }
 
@@ -99,7 +99,7 @@ export const getBatchItem = async <T>(
             const { _version, _updated_at, ...entity } = persistedItem;
             return {
               entity: entity as T,
-              version: _version
+              version: _version ?? 1
             };
           }) ?? [];
 
@@ -278,7 +278,7 @@ export const scan = async <T>(
       const { _version, _updated_at, ...entity } = item;
       scanResults.push({
         entity: entity as T,
-        version: _version
+        version: _version ?? 1
       });
     });
     scanParams.ExclusiveStartKey = items.LastEvaluatedKey;

@@ -106,8 +106,6 @@ test('find entities by id', async () => {
   const persistedCompany = {
     id: 'company-1',
     name: 'Test Company',
-    _version: 1,
-    _updated_at: '2020-01-01T00:00:00.000Z'
   };
   const persistedEmployee = {
     companyId: 'company-1',
