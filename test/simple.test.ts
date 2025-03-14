@@ -105,7 +105,7 @@ test('save all entities', async () => {
 test('find entities by id', async () => {
   const persistedCompany = {
     id: 'company-1',
-    name: 'Test Company',
+    name: 'Test Company'
   };
   const persistedEmployee = {
     companyId: 'company-1',
