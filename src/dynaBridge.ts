@@ -1,7 +1,6 @@
 import { DynamoDBClient, ReturnValuesOnConditionCheckFailure } from '@aws-sdk/client-dynamodb';
 import { NativeAttributeValue, TransactWriteCommandInput } from '@aws-sdk/lib-dynamodb';
 import { DynamoDBClientConfig } from '@aws-sdk/client-dynamodb/dist-types/DynamoDBClient';
-import { DynaBridgeEntity, ID, Migrations, SimpleID } from './types';
 import {
   deleteBatchItem,
   deleteItem,
@@ -10,20 +9,46 @@ import {
   putItem,
   scan,
   transactWrite,
-  writeBatchItem
+  writeBatchItem,
+  query
 } from './dynamodb';
 
-type EntityCommands<T extends Record<string, DynaBridgeEntity>> = {
+type SimpleID = string | number;
+
+type ComplexID = (string | number)[];
+
+type ID = SimpleID | ComplexID;
+
+type Migrations<T> = [...((e: any) => any)[], (e: any) => T] | ((e: any) => T);
+
+type IndexDefinition<T> = {
+  indexName: string;
+  key: Extract<keyof T, string>;
+};
+
+type DynaBridgeEntity<T = any, I extends string = string> = {
+  tableName: string;
+  id: Extract<keyof T, string> | Extract<keyof T, string>[];
+  migrations?: Migrations<T>;
+  index?: Record<I, IndexDefinition<T>>;
+};
+
+// Modified EntityCommands interface with type-safe index parameter
+type EntityCommands<T extends Record<string, DynaBridgeEntity<any, any>>> = {
   [K in keyof T]: T[K] & {
-    findById: (id: ID) => Promise<T[K] extends DynaBridgeEntity<infer U> ? U | undefined : never>;
-    findByIds: (ids: ID[]) => Promise<(T[K] extends DynaBridgeEntity<infer U> ? U : never)[]>;
-    findAll: () => Promise<(T[K] extends DynaBridgeEntity<infer U> ? U : never)[]>;
-    save: (entity: T[K] extends DynaBridgeEntity<infer U> ? U : never) => Promise<void>;
-    saveBatch: (entity: (T[K] extends DynaBridgeEntity<infer U> ? U : never)[]) => Promise<void>;
-    delete: (entity: T[K] extends DynaBridgeEntity<infer U> ? U : never) => Promise<void>;
-    deleteBatch: (entity: (T[K] extends DynaBridgeEntity<infer U> ? U : never)[]) => Promise<void>;
+    findById: (id: ID) => Promise<T[K] extends DynaBridgeEntity<infer U, any> ? U | undefined : never>;
+    findByIds: (ids: ID[]) => Promise<(T[K] extends DynaBridgeEntity<infer U, any> ? U : never)[]>;
+    findAll: () => Promise<(T[K] extends DynaBridgeEntity<infer U, any> ? U : never)[]>;
+    save: (entity: T[K] extends DynaBridgeEntity<infer U, any> ? U : never) => Promise<void>;
+    saveBatch: (entity: (T[K] extends DynaBridgeEntity<infer U, any> ? U : never)[]) => Promise<void>;
+    delete: (entity: T[K] extends DynaBridgeEntity<infer U, any> ? U : never) => Promise<void>;
+    deleteBatch: (entity: (T[K] extends DynaBridgeEntity<infer U, any> ? U : never)[]) => Promise<void>;
     deleteById: (id: ID) => Promise<void>;
     deleteByIds: (ids: ID[]) => Promise<void>;
+    query: <I extends string>(
+      indexName: T[K] extends DynaBridgeEntity<any, infer IX> ? IX : never,
+      keyValue: SimpleID
+    ) => Promise<(T[K] extends DynaBridgeEntity<infer U, any> ? U : never)[]>;
   };
 };
 
@@ -40,18 +65,21 @@ class DynaBridge<T extends Record<string, DynaBridgeEntity>> {
     this.entities = {} as EntityCommands<T>;
 
     Object.keys(entities).forEach((key) => {
-      this.entities[key as keyof T] = {
-        ...entities[key],
-        findById: this._findById.bind(this, this.ddbClient, key),
-        findByIds: this._findByIds.bind(this, this.ddbClient, key),
-        findAll: this._findAll.bind(this, this.ddbClient, key),
-        save: this._save.bind(this, this.ddbClient, key),
-        saveBatch: this._saveBatch.bind(this, this.ddbClient, key),
-        delete: this._delete.bind(this, this.ddbClient, key),
-        deleteBatch: this._deleteBatch.bind(this, this.ddbClient, key),
-        deleteById: this._deleteById.bind(this, this.ddbClient, key),
-        deleteByIds: this._deleteByIds.bind(this, this.ddbClient, key)
-      } as EntityCommands<T>[keyof T];
+      const entityKey = key as keyof T;
+
+      (this.entities[entityKey] as any) = {
+        ...entities[entityKey],
+        findById: this._findById.bind(this, this.ddbClient, entityKey),
+        findByIds: this._findByIds.bind(this, this.ddbClient, entityKey),
+        findAll: this._findAll.bind(this, this.ddbClient, entityKey),
+        save: this._save.bind(this, this.ddbClient, entityKey),
+        saveBatch: this._saveBatch.bind(this, this.ddbClient, entityKey),
+        delete: this._delete.bind(this, this.ddbClient, entityKey),
+        deleteBatch: this._deleteBatch.bind(this, this.ddbClient, entityKey),
+        deleteById: this._deleteById.bind(this, this.ddbClient, entityKey),
+        deleteByIds: this._deleteByIds.bind(this, this.ddbClient, entityKey),
+        query: this._query.bind(this, this.ddbClient, entityKey)
+      };
     });
   }
 
@@ -151,6 +179,29 @@ class DynaBridge<T extends Record<string, DynaBridgeEntity>> {
     const scanResult = await scan(ddbClient, this._entityTypes[type].tableName);
     const migrations = this._entityTypes[type].migrations;
     return scanResult.map(
+      (res) => this._migrate(res.entity, res.version, migrations) as T[K] extends DynaBridgeEntity<infer U> ? U : never
+    );
+  }
+
+  private async _query<K extends keyof T>(
+    ddbClient: DynamoDBClient,
+    type: K,
+    indexName: string,
+    keyValue: SimpleID
+  ): Promise<(T[K] extends DynaBridgeEntity<infer U> ? U : never)[]> {
+    const entityConfig = this._entityTypes[type];
+
+    if (!entityConfig.index || !entityConfig.index[indexName]) {
+      throw new Error(`Index '${indexName}' not found for entity type '${String(type)}'`);
+    }
+
+    const indexConfig = entityConfig.index[indexName];
+    const tableName = entityConfig.tableName;
+    const migrations = entityConfig.migrations;
+
+    const queryResult = await query(ddbClient, tableName, indexConfig.indexName, indexConfig.key, keyValue);
+
+    return queryResult.map(
       (res) => this._migrate(res.entity, res.version, migrations) as T[K] extends DynaBridgeEntity<infer U> ? U : never
     );
   }

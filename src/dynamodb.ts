@@ -10,7 +10,9 @@ import {
   BatchWriteCommandInput,
   DynamoDBDocument,
   ScanCommandOutput,
-  TransactWriteCommandInput
+  TransactWriteCommandInput,
+  QueryCommand,
+  QueryCommandInput
 } from '@aws-sdk/lib-dynamodb';
 
 export const getItem = async <T>(
@@ -216,6 +218,45 @@ export const deleteBatchItem = async <T extends Record<string, any>>(
     }
   }
 };
+
+export async function query(
+  ddbClient: DynamoDBClient,
+  tableName: string,
+  indexName: string,
+  keyName: string,
+  keyValue: string | number
+) {
+  const params: QueryCommandInput = {
+    TableName: tableName,
+    IndexName: indexName,
+    KeyConditionExpression: `#keyAttr = :keyValue`,
+    ExpressionAttributeNames: {
+      '#keyAttr': keyName
+    },
+    ExpressionAttributeValues: {
+      ':keyValue': keyValue
+    }
+  };
+
+  try {
+    const data = await ddbClient.send(new QueryCommand(params));
+
+    if (!data.Items || data.Items.length === 0) {
+      return [];
+    }
+
+    return data.Items.map((item) => {
+      const { _version, _updated_at, ...entity } = item;
+      return {
+        entity,
+        version: _version || 1
+      };
+    });
+  } catch (error) {
+    console.error('Error querying DynamoDB:', error);
+    throw error;
+  }
+}
 
 export const scan = async <T>(
   ddbClient: DynamoDBClient,
