@@ -10,7 +10,8 @@ import {
   scan,
   transactWrite,
   writeBatchItem,
-  query
+  query,
+  QueryInput
 } from './dynamodb';
 
 type SimpleID = string | number;
@@ -23,7 +24,20 @@ type Migrations<T> = [...((e: any) => any)[], (e: any) => T] | ((e: any) => T);
 
 type IndexDefinition<T> = {
   indexName: string;
-  key: Extract<keyof T, string>;
+  hashKey: Extract<keyof T, string>;
+  sortKey?: Extract<keyof T, string>;
+};
+
+type QueryOptions = {
+  scanIndexForward?: boolean;
+  filterExpression?: string;
+  expressionAttributeNames?: Record<string, string>;
+  expressionAttributeValues?: Record<string, NativeAttributeValue>;
+};
+
+type SortKeyCondition = {
+  condition: 'EQ' | 'LT' | 'LE' | 'GT' | 'GE' | 'BEGINS_WITH' | 'BETWEEN';
+  value: SimpleID | [SimpleID, SimpleID];
 };
 
 type DynaBridgeEntity<T = any, I extends string = string> = {
@@ -45,9 +59,16 @@ type EntityCommands<T extends Record<string, DynaBridgeEntity<any, any>>> = {
     deleteBatch: (entity: (T[K] extends DynaBridgeEntity<infer U, any> ? U : never)[]) => Promise<void>;
     deleteById: (id: ID) => Promise<void>;
     deleteByIds: (ids: ID[]) => Promise<void>;
-    query: <I extends string>(
+    queryIndex: <I extends string>(
       indexName: T[K] extends DynaBridgeEntity<any, infer IX> ? IX : never,
-      keyValue: SimpleID
+      hashKeyValue: SimpleID,
+      sortKeyCondition?: SortKeyCondition,
+      options?: QueryOptions
+    ) => Promise<(T[K] extends DynaBridgeEntity<infer U, any> ? U : never)[]>;
+    query: (
+      hashKeyValue: SimpleID,
+      sortKeyCondition?: SortKeyCondition,
+      options?: QueryOptions
     ) => Promise<(T[K] extends DynaBridgeEntity<infer U, any> ? U : never)[]>;
   };
 };
@@ -78,7 +99,8 @@ class DynaBridge<T extends Record<string, DynaBridgeEntity>> {
         deleteBatch: this._deleteBatch.bind(this, this.ddbClient, entityKey),
         deleteById: this._deleteById.bind(this, this.ddbClient, entityKey),
         deleteByIds: this._deleteByIds.bind(this, this.ddbClient, entityKey),
-        query: this._query.bind(this, this.ddbClient, entityKey)
+        queryIndex: this._queryIndex.bind(this, this.ddbClient, entityKey),
+        query: this._queryTable.bind(this, this.ddbClient, entityKey)
       };
     });
   }
@@ -183,12 +205,14 @@ class DynaBridge<T extends Record<string, DynaBridgeEntity>> {
     );
   }
 
-  private async _query<K extends keyof T>(
+  private async _queryIndex<K extends keyof T>(
     ddbClient: DynamoDBClient,
     type: K,
     indexName: string,
-    keyValue: SimpleID
-  ): Promise<(T[K] extends DynaBridgeEntity<infer U> ? U : never)[]> {
+    hashKeyValue: SimpleID,
+    sortKeyCondition?: SortKeyCondition,
+    options?: QueryOptions
+  ): Promise<(T[K] extends DynaBridgeEntity<infer U, any> ? U : never)[]> {
     const entityConfig = this._entityTypes[type];
 
     if (!entityConfig.index || !entityConfig.index[indexName]) {
@@ -199,11 +223,166 @@ class DynaBridge<T extends Record<string, DynaBridgeEntity>> {
     const tableName = entityConfig.tableName;
     const migrations = entityConfig.migrations;
 
-    const queryResult = await query(ddbClient, tableName, indexConfig.indexName, indexConfig.key, keyValue);
+    const queryParams = this._buildQueryParams(
+      tableName,
+      indexConfig.indexName,
+      indexConfig.hashKey,
+      hashKeyValue,
+      indexConfig.sortKey,
+      sortKeyCondition,
+      options
+    );
+
+    const queryResult = await query(ddbClient, queryParams);
 
     return queryResult.map(
-      (res) => this._migrate(res.entity, res.version, migrations) as T[K] extends DynaBridgeEntity<infer U> ? U : never
+      (res) =>
+        this._migrate(res.entity, res.version, migrations) as T[K] extends DynaBridgeEntity<infer U, any> ? U : never
     );
+  }
+
+  private async _queryTable<K extends keyof T>(
+    ddbClient: DynamoDBClient,
+    type: K,
+    hashKeyValue: SimpleID,
+    sortKeyCondition?: SortKeyCondition,
+    options?: QueryOptions
+  ): Promise<(T[K] extends DynaBridgeEntity<infer U, any> ? U : never)[]> {
+    const entityConfig = this._entityTypes[type];
+    const tableName = entityConfig.tableName;
+    const migrations = entityConfig.migrations;
+
+    // For table queries, we need to use the primary key attributes
+    const idDef = entityConfig.id;
+    let hashKey: string;
+    let sortKey: string | undefined;
+
+    if (Array.isArray(idDef)) {
+      if (idDef.length < 1 || idDef.length > 2) {
+        throw new Error(`Invalid primary key definition for entity type '${String(type)}'`);
+      }
+      hashKey = idDef[0];
+      sortKey = idDef.length === 2 ? idDef[1] : undefined;
+    } else {
+      hashKey = idDef;
+    }
+
+    const queryParams = this._buildQueryParams(
+      tableName,
+      undefined, // No index name for table queries
+      hashKey,
+      hashKeyValue,
+      sortKey,
+      sortKeyCondition,
+      options
+    );
+
+    const queryResult = await query(ddbClient, queryParams);
+
+    return queryResult.map(
+      (res) =>
+        this._migrate(res.entity, res.version, migrations) as T[K] extends DynaBridgeEntity<infer U, any> ? U : never
+    );
+  }
+
+  private _buildQueryParams(
+    tableName: string,
+    indexName: string | undefined,
+    hashKey: string,
+    hashKeyValue: SimpleID,
+    sortKey?: string,
+    sortKeyCondition?: SortKeyCondition,
+    options?: QueryOptions
+  ): QueryInput {
+    const queryParams: QueryInput = {
+      TableName: tableName,
+      KeyConditionExpression: `#hk = :hkv`,
+      ExpressionAttributeNames: {
+        '#hk': hashKey
+      },
+      ExpressionAttributeValues: {
+        ':hkv': hashKeyValue
+      }
+    };
+
+    if (indexName) {
+      queryParams.IndexName = indexName;
+    }
+
+    // Add sort key condition if provided
+    if (sortKey && sortKeyCondition) {
+      const { condition, value } = sortKeyCondition;
+
+      switch (condition) {
+        case 'EQ':
+          queryParams.KeyConditionExpression += ` AND #sk = :skv`;
+          queryParams.ExpressionAttributeNames!['#sk'] = sortKey;
+          queryParams.ExpressionAttributeValues![':skv'] = value as SimpleID;
+          break;
+        case 'LT':
+          queryParams.KeyConditionExpression += ` AND #sk < :skv`;
+          queryParams.ExpressionAttributeNames!['#sk'] = sortKey;
+          queryParams.ExpressionAttributeValues![':skv'] = value as SimpleID;
+          break;
+        case 'LE':
+          queryParams.KeyConditionExpression += ` AND #sk <= :skv`;
+          queryParams.ExpressionAttributeNames!['#sk'] = sortKey;
+          queryParams.ExpressionAttributeValues![':skv'] = value as SimpleID;
+          break;
+        case 'GT':
+          queryParams.KeyConditionExpression += ` AND #sk > :skv`;
+          queryParams.ExpressionAttributeNames!['#sk'] = sortKey;
+          queryParams.ExpressionAttributeValues![':skv'] = value as SimpleID;
+          break;
+        case 'GE':
+          queryParams.KeyConditionExpression += ` AND #sk >= :skv`;
+          queryParams.ExpressionAttributeNames!['#sk'] = sortKey;
+          queryParams.ExpressionAttributeValues![':skv'] = value as SimpleID;
+          break;
+        case 'BEGINS_WITH':
+          queryParams.KeyConditionExpression += ` AND begins_with(#sk, :skv)`;
+          queryParams.ExpressionAttributeNames!['#sk'] = sortKey;
+          queryParams.ExpressionAttributeValues![':skv'] = value as SimpleID;
+          break;
+        case 'BETWEEN':
+          if (!Array.isArray(value) || value.length !== 2) {
+            throw new Error('BETWEEN condition requires exactly two values');
+          }
+          queryParams.KeyConditionExpression += ` AND #sk BETWEEN :skv1 AND :skv2`;
+          queryParams.ExpressionAttributeNames!['#sk'] = sortKey;
+          queryParams.ExpressionAttributeValues![':skv1'] = value[0];
+          queryParams.ExpressionAttributeValues![':skv2'] = value[1];
+          break;
+        default:
+          throw new Error(`Unsupported sort key condition: ${condition}`);
+      }
+    }
+
+    if (options) {
+      if (options.scanIndexForward !== undefined) {
+        queryParams.ScanIndexForward = options.scanIndexForward;
+      }
+
+      if (options.filterExpression) {
+        queryParams.FilterExpression = options.filterExpression;
+
+        if (options.expressionAttributeNames) {
+          queryParams.ExpressionAttributeNames = {
+            ...queryParams.ExpressionAttributeNames,
+            ...options.expressionAttributeNames
+          };
+        }
+
+        if (options.expressionAttributeValues) {
+          queryParams.ExpressionAttributeValues = {
+            ...queryParams.ExpressionAttributeValues,
+            ...options.expressionAttributeValues
+          };
+        }
+      }
+    }
+
+    return queryParams;
   }
 
   private async _save<K extends keyof T>(
