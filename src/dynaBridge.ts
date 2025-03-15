@@ -462,4 +462,4 @@ class DynaBridge<T extends Record<string, DynaBridgeEntity>> {
   }
 }
 
-export { DynaBridge, DynaBridgeEntity };
+export { DynaBridge, DynaBridgeEntity, Serializer };

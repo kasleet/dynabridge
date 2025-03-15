@@ -217,7 +217,7 @@ await db.transaction([
 
 ### Querying an index
 
-DynamoDB tabled can have multiple indices. Here is an example on how to specify
+DynamoDB tables can have multiple indices. Here is an example on how to specify
 and use an index in DynaBridge:
 ```typescript
 import { DynaBridge, DynaBridgeEntity } from 'dynabridge';
