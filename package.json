@@ -1,6 +1,6 @@
 {
   "name": "dynabridge",
-  "version": "0.3.0",
+  "version": "0.3.5",
   "author": "Kassem Tohme",
   "license": "MIT",
   "description": "Simple and light-weight TypeScript entity-focused wrapper for DynamoDB",

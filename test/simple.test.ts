@@ -2,20 +2,39 @@ import { beforeEach, expect, test, vi } from 'vitest';
 import { BatchGetItemCommand, DeleteItemCommand, DynamoDBClient, GetItemCommand } from '@aws-sdk/client-dynamodb';
 import { mockClient } from 'aws-sdk-client-mock';
 import { marshall } from '@aws-sdk/util-dynamodb';
-import { DynaBridge } from '../src';
-import { companyEntity } from './simple/repository/companyEntity';
-import { employeeEntity } from './simple/repository/employeeEntity';
-import { Company } from './simple/domain/Company';
-import { Employee } from './simple/domain/Employee';
+import { DynaBridge, DynaBridgeEntity } from '../src';
 import {
   BatchWriteCommand,
   DynamoDBDocument,
   PutCommand,
+  QueryCommand,
   ScanCommand,
   TransactWriteCommand
 } from '@aws-sdk/lib-dynamodb';
 
-const dynamORM = new DynaBridge({
+export interface Company {
+  id: string;
+  name: string;
+}
+
+export interface Employee {
+  companyId: string;
+  employeeNumber: number;
+  firstName: string;
+  lastName: string;
+}
+
+export const companyEntity: DynaBridgeEntity<Company> = {
+  tableName: 'company-739ab4',
+  id: 'id'
+};
+
+export const employeeEntity: DynaBridgeEntity<Employee> = {
+  tableName: 'employee-739ab4',
+  id: ['companyId', 'employeeNumber']
+};
+
+const db = new DynaBridge({
   company: companyEntity,
   employee: employeeEntity
 });
@@ -43,8 +62,8 @@ test('save entities', async () => {
 
   dynamoDbDocumentClientMock.on(PutCommand).resolves(Promise.resolve({}));
 
-  await dynamORM.entities.company.save(company);
-  await dynamORM.entities.employee.save(employee);
+  await db.entities.company.save(company);
+  await db.entities.employee.save(employee);
 
   expect(dynamoDbDocumentClientMock.calls().at(0)?.firstArg.input.Item).toEqual({
     id: 'company-1',
@@ -74,7 +93,7 @@ test('save all entities', async () => {
 
   dynamoDbDocumentClientMock.on(BatchWriteCommand).resolves(Promise.resolve({}));
 
-  await dynamORM.entities.company.saveBatch([company1, company2]);
+  await db.entities.company.saveBatch([company1, company2]);
 
   expect(dynamoDbDocumentClientMock.calls().at(0)?.firstArg.input.RequestItems).toEqual({
     [companyEntity.tableName]: [
@@ -121,8 +140,8 @@ test('find entities by id', async () => {
     .resolvesOnce({ Item: marshall(persistedCompany) })
     .resolvesOnce({ Item: marshall(persistedEmployee) });
 
-  const company = await dynamORM.entities.company.findById('company-1');
-  const employee = await dynamORM.entities.employee.findById(['company-1', 1]);
+  const company = await db.entities.company.findById('company-1');
+  const employee = await db.entities.employee.findById(['company-1', 1]);
 
   expect(company).toEqual({
     id: 'company-1',
@@ -156,7 +175,7 @@ test('find multiple entities by id', async () => {
     }
   });
 
-  const companies = await dynamORM.entities.company.findByIds(['company-1', 'company-2']);
+  const companies = await db.entities.company.findByIds(['company-1', 'company-2']);
 
   expect(companies).toEqual([
     {
@@ -186,7 +205,7 @@ test('find all entities', async () => {
 
   dynamoDbDocumentClientMock.on(ScanCommand).resolves({ Items: [persistedCompany1, persistedCompany2] });
 
-  const allCompanies = await dynamORM.entities.company.findAll();
+  const allCompanies = await db.entities.company.findAll();
 
   expect(allCompanies).toEqual([
     {
@@ -196,6 +215,30 @@ test('find all entities', async () => {
     {
       id: 'company-2',
       name: 'Test Company'
+    }
+  ]);
+});
+
+test('find multiple entities using query', async () => {
+  const employee1 = {
+    companyId: 'company-1',
+    employeeNumber: 1,
+    firstName: 'Foo',
+    lastName: 'Bar',
+    _version: 1,
+    _updated_at: '2020-01-01T00:00:00.000Z'
+  };
+
+  dynamoDbDocumentClientMock.on(QueryCommand).resolves({ Items: [employee1] });
+
+  const res = await db.entities.employee.query('company-1');
+
+  expect(res).toEqual([
+    {
+      companyId: 'company-1',
+      employeeNumber: 1,
+      firstName: 'Foo',
+      lastName: 'Bar'
     }
   ]);
 });
@@ -210,9 +253,9 @@ test('delete entities', async () => {
     lastName: 'Bar'
   };
 
-  await dynamORM.entities.company.deleteById('company-1');
-  await dynamORM.entities.employee.deleteById(['company-1', 1]);
-  await dynamORM.entities.employee.delete(employee);
+  await db.entities.company.deleteById('company-1');
+  await db.entities.employee.deleteById(['company-1', 1]);
+  await db.entities.employee.delete(employee);
 
   expect(dynamoDbClientMock.calls().at(0)?.firstArg.input.Key).toEqual(marshall({ id: 'company-1' }));
   expect(dynamoDbClientMock.calls().at(1)?.firstArg.input.Key).toEqual(
@@ -249,7 +292,7 @@ test('save multiple entities in transaction', async () => {
 
   dynamoDbDocumentClientMock.on(TransactWriteCommand).resolves(Promise.resolve({}));
 
-  await dynamORM.transaction([
+  await db.transaction([
     { action: 'Put', type: 'company', entity: company },
     { action: 'Put', type: 'employee', entity: employee1 },
     {

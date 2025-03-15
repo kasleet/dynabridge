@@ -127,6 +127,8 @@ const someEmployee2: Employee = {
 };
 ```
 
+### Basic operations 
+
 #### Write single entity
 
 ```typescript
@@ -153,6 +155,12 @@ const employee: Employee | undefined = await db.entities.employee.findById(['c1'
 ```typescript
 const companies: Company[] = await db.entities.company.findByIds(['c1', 'c2']);
 const employees: Employee[] = await db.entities.employee.findByIds([['c1', 1], ['c1', 2]]);
+```
+
+#### Fetch multiple entities by hash key (table query)
+
+```typescript
+const employees: Employee[] = await db.entities.employee.query('c1');
 ```
 
 #### Fetch all entities
@@ -205,6 +213,39 @@ await db.transaction([
   },
   { action: 'Delete', type: 'company', entity: someCompany2 }
 ]);
+```
+
+### Querying an index
+
+DynamoDB tabled can have multiple indices. Here is an example on how to specify
+and use an index in DynaBridge:
+```typescript
+import { DynaBridge, DynaBridgeEntity } from 'dynabridge';
+
+interface Employee {
+  companyId: string;
+  employeeNumber: number;
+  firstName: string;
+  lastName: string;
+  country: string;
+}
+
+const employeeEntity: DynaBridgeEntity<Employee, 'byCountry'> = {
+  tableName: 'employee',
+  id: ['companyId', 'employeeNumber'],
+  index: {
+    byCountry: {
+      indexName: 'employee-country',
+      hashKey: 'country'
+    }
+  }
+};
+
+export const db = new DynaBridge({
+  employee: employeeEntity
+});
+
+const employeesFromGermany: Employee[] = await db.entities.employee.queryIndex('byCountry', 'Germany');
 ```
 
 ## Schema migrations
@@ -300,6 +341,29 @@ await db.entities.employee.save(employee!);
 { "companyId": "c1", "employeeNumber": 1, "firstName": "John", "lastName": "Doe", "role": "Other", "_version": 2, "_updated_at": "..." }
 ```
 
+## Serialization / Deserialization
+
+All entities are written as an `Item` using the `DynamoDBClient` and `DynamoDBDocumentClient`
+(depending on the operation). Sometimes, it is necessary to map the entity before
+writing it into DynamoDB and when loading it from the table, e.g. when handling
+Date or other complex types. DynaBridge provides a bare-bone serialize/deserialize 
+feature. 
+
+```typescript
+import { DynaBridge, DynaBridgeEntity } from 'dynabridge';
+import { mapDatesToString, mapStringsToDate } from './dateUtil';
+
+const db = new DynaBridge(
+  {
+    employee: employeeEntity
+  },
+  {
+    serialize: (entity) => mapDatesToString(entity),
+    deserialize: (entity) => mapStringsToDate(entity)
+  }
+);
+```
+
 ## DynaBridge API details
 
 DynaBridge API is using the following DynamoDB API / SDK commands
@@ -317,6 +381,9 @@ DynaBridge API is using the following DynamoDB API / SDK commands
   * `UnprocessedKeys` retries  = 3
   * batch_size = 100
   * All requested items will be returned (no pagination)
+* `.query`:
+  * Uses `DynamoDBDocumentClient` and `QueryCommand`
+  * All requested items will be returned (no pagination)
 * `.findAll`: 
   * Uses `DynamoDBDocumentClient` and `ScanCommand`
   * sequentiell (`TotalSegments` = 1)
@@ -329,3 +396,6 @@ DynaBridge API is using the following DynamoDB API / SDK commands
   * batch_size = 100
 * `.transaction`
   * Uses `DynamoDBDocumentClient` and `TransactWriteCommand`
+* `.queryIndex`:
+  * Uses `DynamoDBDocumentClient` and `QueryCommand`
+  * All requested items will be returned (no pagination)

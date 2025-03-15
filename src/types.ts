@@ -1,4 +1,5 @@
 import { NativeAttributeValue } from '@aws-sdk/lib-dynamodb';
+import { T } from 'vitest/dist/chunks/global.CnI8_G5V';
 
 type SimpleID = string | number;
 
@@ -59,4 +60,9 @@ type EntityCommands<T extends Record<string, DynaBridgeEntity<any, any>>> = {
   };
 };
 
-export { DynaBridgeEntity, ID, Migrations, SimpleID, SortKeyCondition, QueryOptions, EntityCommands };
+type Serializer = {
+  serialize: (entity: any) => any;
+  deserialize: (entity: any) => any;
+};
+
+export { DynaBridgeEntity, ID, Migrations, SimpleID, SortKeyCondition, QueryOptions, EntityCommands, Serializer };

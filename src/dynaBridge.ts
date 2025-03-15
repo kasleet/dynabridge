@@ -13,17 +13,35 @@ import {
   query,
   QueryInput
 } from './dynamodb';
-import { DynaBridgeEntity, EntityCommands, ID, Migrations, QueryOptions, SimpleID, SortKeyCondition } from './types';
+import {
+  DynaBridgeEntity,
+  EntityCommands,
+  ID,
+  Migrations,
+  QueryOptions,
+  Serializer,
+  SimpleID,
+  SortKeyCondition
+} from './types';
 
 class DynaBridge<T extends Record<string, DynaBridgeEntity>> {
   public entities: EntityCommands<T>;
 
   private readonly _entityTypes: T;
   private readonly ddbClient: DynamoDBClient;
+  private readonly serializer: Serializer;
 
-  constructor(entities: T, config?: DynamoDBClientConfig) {
+  constructor(entities: T, serializer?: Serializer, config?: DynamoDBClientConfig) {
     this._entityTypes = entities;
     this.ddbClient = new DynamoDBClient(config ?? {});
+    this.serializer = {
+      serialize: (entity) => entity,
+      deserialize: (entity) => entity
+    };
+
+    if (serializer) {
+      this.serializer = serializer;
+    }
 
     this.entities = {} as EntityCommands<T>;
 
@@ -32,17 +50,17 @@ class DynaBridge<T extends Record<string, DynaBridgeEntity>> {
 
       (this.entities[entityKey] as any) = {
         ...entities[entityKey],
-        findById: this._findById.bind(this, this.ddbClient, entityKey),
-        findByIds: this._findByIds.bind(this, this.ddbClient, entityKey),
-        findAll: this._findAll.bind(this, this.ddbClient, entityKey),
-        save: this._save.bind(this, this.ddbClient, entityKey),
-        saveBatch: this._saveBatch.bind(this, this.ddbClient, entityKey),
-        delete: this._delete.bind(this, this.ddbClient, entityKey),
-        deleteBatch: this._deleteBatch.bind(this, this.ddbClient, entityKey),
-        deleteById: this._deleteById.bind(this, this.ddbClient, entityKey),
-        deleteByIds: this._deleteByIds.bind(this, this.ddbClient, entityKey),
-        queryIndex: this._queryIndex.bind(this, this.ddbClient, entityKey),
-        query: this._queryTable.bind(this, this.ddbClient, entityKey)
+        findById: this._findById.bind(this, entityKey),
+        findByIds: this._findByIds.bind(this, entityKey),
+        findAll: this._findAll.bind(this, entityKey),
+        save: this._save.bind(this, entityKey),
+        saveBatch: this._saveBatch.bind(this, entityKey),
+        delete: this._delete.bind(this, entityKey),
+        deleteBatch: this._deleteBatch.bind(this, entityKey),
+        deleteById: this._deleteById.bind(this, entityKey),
+        deleteByIds: this._deleteByIds.bind(this, entityKey),
+        queryIndex: this._queryIndex.bind(this, entityKey),
+        query: this._queryTable.bind(this, entityKey)
       };
     });
   }
@@ -107,48 +125,51 @@ class DynaBridge<T extends Record<string, DynaBridgeEntity>> {
   }
 
   private async _findById<K extends keyof T>(
-    ddbClient: DynamoDBClient,
     type: K,
     id: ID
   ): Promise<T[K] extends DynaBridgeEntity<infer U> ? U | undefined : never> {
-    const getItemRes = await getItem(ddbClient, this._entityTypes[type].tableName, this._createKey(type, id));
+    const getItemRes = await getItem(this.ddbClient, this._entityTypes[type].tableName, this._createKey(type, id));
     if (!getItemRes) {
       return undefined as never;
     }
 
     const migrations = this._entityTypes[type].migrations;
-    return this._migrate(getItemRes.entity, getItemRes.version, migrations);
+
+    const migratedEntity = this._migrate(getItemRes.entity, getItemRes.version, migrations);
+
+    return this.serializer.deserialize(migratedEntity);
   }
 
   private async _findByIds<K extends keyof T>(
-    ddbClient: DynamoDBClient,
     type: K,
     ids: ID[]
   ): Promise<(T[K] extends DynaBridgeEntity<infer U> ? U : never)[]> {
     const getBatchResult = await getBatchItem(
-      ddbClient,
+      this.ddbClient,
       this._entityTypes[type].tableName,
       ids.map((id) => this._createKey(type, id))
     );
     const migrations = this._entityTypes[type].migrations;
-    return getBatchResult.map(
-      (res) => this._migrate(res.entity, res.version, migrations) as T[K] extends DynaBridgeEntity<infer U> ? U : never
-    );
+    return getBatchResult.map((res) => {
+      const migrated = this._migrate(res.entity, res.version, migrations) as T[K] extends DynaBridgeEntity<infer U>
+        ? U
+        : never;
+      return this.serializer.deserialize(migrated);
+    });
   }
 
-  private async _findAll<K extends keyof T>(
-    ddbClient: DynamoDBClient,
-    type: K
-  ): Promise<(T[K] extends DynaBridgeEntity<infer U> ? U : never)[]> {
-    const scanResult = await scan(ddbClient, this._entityTypes[type].tableName);
+  private async _findAll<K extends keyof T>(type: K): Promise<(T[K] extends DynaBridgeEntity<infer U> ? U : never)[]> {
+    const scanResult = await scan(this.ddbClient, this._entityTypes[type].tableName);
     const migrations = this._entityTypes[type].migrations;
-    return scanResult.map(
-      (res) => this._migrate(res.entity, res.version, migrations) as T[K] extends DynaBridgeEntity<infer U> ? U : never
-    );
+    return scanResult.map((res) => {
+      const migrated = this._migrate(res.entity, res.version, migrations) as T[K] extends DynaBridgeEntity<infer U>
+        ? U
+        : never;
+      return this.serializer.deserialize(migrated);
+    });
   }
 
   private async _queryIndex<K extends keyof T>(
-    ddbClient: DynamoDBClient,
     type: K,
     indexName: string,
     hashKeyValue: SimpleID,
@@ -175,16 +196,17 @@ class DynaBridge<T extends Record<string, DynaBridgeEntity>> {
       options
     );
 
-    const queryResult = await query(ddbClient, queryParams);
+    const queryResult = await query(this.ddbClient, queryParams);
 
-    return queryResult.map(
-      (res) =>
-        this._migrate(res.entity, res.version, migrations) as T[K] extends DynaBridgeEntity<infer U, any> ? U : never
-    );
+    return queryResult.map((res) => {
+      const migrated = this._migrate(res.entity, res.version, migrations) as T[K] extends DynaBridgeEntity<infer U, any>
+        ? U
+        : never;
+      return this.serializer.deserialize(migrated);
+    });
   }
 
   private async _queryTable<K extends keyof T>(
-    ddbClient: DynamoDBClient,
     type: K,
     hashKeyValue: SimpleID,
     sortKeyCondition?: SortKeyCondition,
@@ -194,7 +216,6 @@ class DynaBridge<T extends Record<string, DynaBridgeEntity>> {
     const tableName = entityConfig.tableName;
     const migrations = entityConfig.migrations;
 
-    // For table queries, we need to use the primary key attributes
     const idDef = entityConfig.id;
     let hashKey: string;
     let sortKey: string | undefined;
@@ -211,7 +232,7 @@ class DynaBridge<T extends Record<string, DynaBridgeEntity>> {
 
     const queryParams = this._buildQueryParams(
       tableName,
-      undefined, // No index name for table queries
+      undefined,
       hashKey,
       hashKeyValue,
       sortKey,
@@ -219,12 +240,126 @@ class DynaBridge<T extends Record<string, DynaBridgeEntity>> {
       options
     );
 
-    const queryResult = await query(ddbClient, queryParams);
+    const queryResult = await query(this.ddbClient, queryParams);
 
-    return queryResult.map(
-      (res) =>
-        this._migrate(res.entity, res.version, migrations) as T[K] extends DynaBridgeEntity<infer U, any> ? U : never
+    return queryResult.map((res) => {
+      const migrated = this._migrate(res.entity, res.version, migrations) as T[K] extends DynaBridgeEntity<infer U, any>
+        ? U
+        : never;
+      return this.serializer.deserialize(migrated);
+    });
+  }
+
+  private async _save<K extends keyof T>(
+    type: K,
+    entity: T[K] extends DynaBridgeEntity<infer U> ? U : never
+  ): Promise<void> {
+    const tableName = this._entityTypes[type].tableName;
+    const currentVersion = (this._entityTypes[type].migrations?.length ?? 0) + 1;
+    const serialized = this.serializer.serialize(entity);
+    return putItem(this.ddbClient, tableName, currentVersion, serialized);
+  }
+
+  private async _saveBatch<K extends keyof T>(
+    type: K,
+    entities: (T[K] extends DynaBridgeEntity<infer U> ? U : never)[]
+  ): Promise<void> {
+    const tableName = this._entityTypes[type].tableName;
+    const currentVersion = (this._entityTypes[type].migrations?.length ?? 0) + 1;
+    const serialized = entities.map((entity) => this.serializer.serialize(entity));
+    return writeBatchItem(this.ddbClient, tableName, currentVersion, serialized);
+  }
+
+  private async _delete<K extends keyof T>(
+    type: K,
+    entity: T[K] extends DynaBridgeEntity<infer U> ? U : never
+  ): Promise<void> {
+    return deleteItem(this.ddbClient, this._entityTypes[type].tableName, this._getKeyFromEntity(type, entity));
+  }
+
+  private async _deleteBatch<K extends keyof T>(
+    type: K,
+    entities: (T[K] extends DynaBridgeEntity<infer U> ? U : never)[]
+  ): Promise<void> {
+    return deleteBatchItem(
+      this.ddbClient,
+      this._entityTypes[type].tableName,
+      entities.map((entity) => this._getKeyFromEntity(type, entity))
     );
+  }
+
+  private async _deleteById<K extends keyof T>(type: K, id: ID): Promise<void> {
+    return deleteItem(this.ddbClient, this._entityTypes[type].tableName, this._createKey(type, id));
+  }
+
+  private async _deleteByIds<K extends keyof T>(type: K, ids: ID[]): Promise<void> {
+    return deleteBatchItem(
+      this.ddbClient,
+      this._entityTypes[type].tableName,
+      ids.map((id) => this._createKey(type, id))
+    );
+  }
+
+  private _migrate = (entity: unknown, version: number, migrations?: Migrations<any>) => {
+    if (!migrations) {
+      return entity;
+    }
+
+    if (Array.isArray(migrations)) {
+      if (version > migrations.length) {
+        return entity;
+      }
+      return migrations.slice(version - 1).reduce((current, migration) => {
+        return migration(current);
+      }, entity);
+    }
+
+    if (version === 1) {
+      return migrations(entity);
+    }
+
+    return entity;
+  };
+
+  private _createKey<K extends keyof T>(type: K, idValue: ID): Record<string, NativeAttributeValue> {
+    const idDef = this._entityTypes[type].id;
+
+    if (Array.isArray(idDef) && Array.isArray(idValue)) {
+      if (idDef.length !== idValue.length) {
+        throw new Error(`Could not create key for ${String(type)} as id keys and values length do not match.`);
+      }
+
+      return idDef.reduce(
+        (currentId, key) => {
+          currentId[key] = idValue.at(Object.keys(currentId).length)!;
+          return currentId;
+        },
+        {} as Record<string, string | number>
+      );
+    } else if (!Array.isArray(idDef) && !Array.isArray(idValue)) {
+      return { [idDef]: idValue };
+    }
+
+    throw new Error(`Could not create key for ${String(type)} as id keys and values types do not match.`);
+  }
+
+  private _getKeyFromEntity<K extends keyof T>(
+    type: K,
+    entity: T[K] extends DynaBridgeEntity<infer U> ? U : never
+  ): Record<string, NativeAttributeValue> {
+    const idDef = this._entityTypes[type].id;
+
+    if (Array.isArray(idDef)) {
+      return idDef.reduce(
+        (currentId, key) => {
+          currentId[key] = (entity as Record<string, SimpleID>)[key];
+          return currentId;
+        },
+        {} as Record<string, SimpleID>
+      );
+    }
+
+    return { [idDef]: (entity as Record<string, any>)[idDef] };
   }
 
   private _buildQueryParams(
@@ -251,7 +386,6 @@ class DynaBridge<T extends Record<string, DynaBridgeEntity>> {
       queryParams.IndexName = indexName;
     }
 
-    // Add sort key condition if provided
     if (sortKey && sortKeyCondition) {
       const { condition, value } = sortKeyCondition;
 
@@ -325,120 +459,6 @@ class DynaBridge<T extends Record<string, DynaBridgeEntity>> {
     }
 
     return queryParams;
-  }
-
-  private async _save<K extends keyof T>(
-    ddbClient: DynamoDBClient,
-    type: K,
-    entity: T[K] extends DynaBridgeEntity<infer U> ? U : never
-  ): Promise<void> {
-    const tableName = this._entityTypes[type].tableName;
-    const currentVersion = (this._entityTypes[type].migrations?.length ?? 0) + 1;
-    return putItem(ddbClient, tableName, currentVersion, entity as Record<string, any>);
-  }
-
-  private async _saveBatch<K extends keyof T>(
-    ddbClient: DynamoDBClient,
-    type: K,
-    entities: (T[K] extends DynaBridgeEntity<infer U> ? U : never)[]
-  ): Promise<void> {
-    const tableName = this._entityTypes[type].tableName;
-    const currentVersion = (this._entityTypes[type].migrations?.length ?? 0) + 1;
-    return writeBatchItem(ddbClient, tableName, currentVersion, entities as Record<string, any>[]);
-  }
-
-  private async _delete<K extends keyof T>(
-    ddbClient: DynamoDBClient,
-    type: K,
-    entity: T[K] extends DynaBridgeEntity<infer U> ? U : never
-  ): Promise<void> {
-    return deleteItem(ddbClient, this._entityTypes[type].tableName, this._getKeyFromEntity(type, entity));
-  }
-
-  private async _deleteBatch<K extends keyof T>(
-    ddbClient: DynamoDBClient,
-    type: K,
-    entities: (T[K] extends DynaBridgeEntity<infer U> ? U : never)[]
-  ): Promise<void> {
-    return deleteBatchItem(
-      ddbClient,
-      this._entityTypes[type].tableName,
-      entities.map((entity) => this._getKeyFromEntity(type, entity))
-    );
-  }
-
-  private async _deleteById<K extends keyof T>(ddbClient: DynamoDBClient, type: K, id: ID): Promise<void> {
-    return deleteItem(ddbClient, this._entityTypes[type].tableName, this._createKey(type, id));
-  }
-
-  private async _deleteByIds<K extends keyof T>(ddbClient: DynamoDBClient, type: K, ids: ID[]): Promise<void> {
-    return deleteBatchItem(
-      ddbClient,
-      this._entityTypes[type].tableName,
-      ids.map((id) => this._createKey(type, id))
-    );
-  }
-
-  private _migrate = (entity: unknown, version: number, migrations?: Migrations<any>) => {
-    if (!migrations) {
-      return entity;
-    }
-
-    if (Array.isArray(migrations)) {
-      if (version > migrations.length) {
-        return entity;
-      }
-      return migrations.slice(version - 1).reduce((current, migration) => {
-        return migration(current);
-      }, entity);
-    }
-
-    if (version === 1) {
-      return migrations(entity);
-    }
-
-    return entity;
-  };
-
-  private _createKey<K extends keyof T>(type: K, idValue: ID): Record<string, NativeAttributeValue> {
-    const idDef = this._entityTypes[type].id;
-
-    if (Array.isArray(idDef) && Array.isArray(idValue)) {
-      if (idDef.length !== idValue.length) {
-        throw new Error(`Could not create key for ${String(type)} as id keys and values length do not match.`);
-      }
-
-      return idDef.reduce(
-        (currentId, key) => {
-          currentId[key] = idValue.at(Object.keys(currentId).length)!;
-          return currentId;
-        },
-        {} as Record<string, string | number>
-      );
-    } else if (!Array.isArray(idDef) && !Array.isArray(idValue)) {
-      return { [idDef]: idValue };
-    }
-
-    throw new Error(`Could not create key for ${String(type)} as id keys and values types do not match.`);
-  }
-
-  private _getKeyFromEntity<K extends keyof T>(
-    type: K,
-    entity: T[K] extends DynaBridgeEntity<infer U> ? U : never
-  ): Record<string, NativeAttributeValue> {
-    const idDef = this._entityTypes[type].id;
-
-    if (Array.isArray(idDef)) {
-      return idDef.reduce(
-        (currentId, key) => {
-          currentId[key] = (entity as Record<string, SimpleID>)[key];
-          return currentId;
-        },
-        {} as Record<string, SimpleID>
-      );
-    }
-
-    return { [idDef]: (entity as Record<string, any>)[idDef] };
   }
 }
 

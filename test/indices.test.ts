@@ -1,8 +1,26 @@
 import { beforeEach, expect, test, vi } from 'vitest';
 import { mockClient } from 'aws-sdk-client-mock';
-import { DynaBridge } from '../src';
+import { DynaBridge, DynaBridgeEntity } from '../src';
 import { DynamoDBDocumentClient, QueryCommand } from '@aws-sdk/lib-dynamodb';
-import { employeeEntity } from './indices/repository/employeeEntity';
+
+export interface Employee {
+  companyId: string;
+  employeeNumber: number;
+  firstName: string;
+  lastName: string;
+  country: string;
+}
+
+export const employeeEntity: DynaBridgeEntity<Employee, 'byCountry'> = {
+  tableName: 'employee-739ab4',
+  id: ['companyId', 'employeeNumber'],
+  index: {
+    byCountry: {
+      indexName: 'employee-country-index-abdc23',
+      hashKey: 'country'
+    }
+  }
+};
 
 const db = new DynaBridge({
   employee: employeeEntity
@@ -15,33 +33,7 @@ beforeEach(() => {
   dynamoDbClientMock.reset();
 });
 
-test('query entities from table', async () => {
-  const employee1 = {
-    companyId: 'company-1',
-    employeeNumber: 1,
-    firstName: 'Foo',
-    lastName: 'Bar',
-    country: 'Germany',
-    _version: 1,
-    _updated_at: '2020-01-01T00:00:00.000Z'
-  };
-
-  dynamoDbClientMock.on(QueryCommand).resolves({ Items: [employee1] });
-
-  const res = await db.entities.employee.query('company-1');
-
-  expect(res).toEqual([
-    {
-      companyId: 'company-1',
-      employeeNumber: 1,
-      firstName: 'Foo',
-      lastName: 'Bar',
-      country: 'Germany'
-    }
-  ]);
-});
-
-test('query entities from index', async () => {
+test('find entities using index query', async () => {
   const employee1 = {
     companyId: 'company-1',
     employeeNumber: 1,

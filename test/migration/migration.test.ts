@@ -2,9 +2,9 @@ import { beforeEach, expect, test, vi } from 'vitest';
 import { BatchGetItemCommand, DynamoDBClient, GetItemCommand } from '@aws-sdk/client-dynamodb';
 import { mockClient } from 'aws-sdk-client-mock';
 import { marshall } from '@aws-sdk/util-dynamodb';
-import { DynaBridge } from '../src';
-import { companyEntity } from './migration/repository/companyEntity';
-import { employeeEntity } from './migration/repository/employeeEntity';
+import { DynaBridge } from '../../src';
+import { companyEntity } from './repository/companyEntity';
+import { employeeEntity } from './repository/employeeEntity';
 import { DynamoDBDocument, ScanCommand } from '@aws-sdk/lib-dynamodb';
 
 const dynamORM = new DynaBridge({
