@@ -325,7 +325,7 @@ export const employeeEntity: DynaBridgeEntity<Employee> = {
 }
 ```
 
-When fetching the item using the `.findById`, `.findByIds` or `.findAll` API, the result would be
+When fetching the item using the `.findById`, `.findByIds`, `.query`, `.queryIndex` or `.findAll` API, the result would be
 ```typescript
 const employee: Employee | undefined = await db.entities.employee.findById(['c1', 1]);
 console.log(employee) // { companyId: "c1", employeeNumber: 1, firstName: "John", lastName: "Doe", role: "Other" }
