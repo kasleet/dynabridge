@@ -384,6 +384,9 @@ DynaBridge API is using the following DynamoDB API / SDK commands
 * `.query`:
   * Uses `DynamoDBDocumentClient` and `QueryCommand`
   * All requested items will be returned (no pagination)
+* `.queryIndex`:
+  * Uses `DynamoDBDocumentClient` and `QueryCommand`
+  * All requested items will be returned (no pagination)
 * `.findAll`: 
   * Uses `DynamoDBDocumentClient` and `ScanCommand`
   * sequentiell (`TotalSegments` = 1)
@@ -396,6 +399,3 @@ DynaBridge API is using the following DynamoDB API / SDK commands
   * batch_size = 100
 * `.transaction`
   * Uses `DynamoDBDocumentClient` and `TransactWriteCommand`
-* `.queryIndex`:
-  * Uses `DynamoDBDocumentClient` and `QueryCommand`
-  * All requested items will be returned (no pagination)
