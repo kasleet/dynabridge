@@ -96,8 +96,9 @@ class DynaBridge<T extends Record<string, DynaBridgeEntity>> {
 
       switch (action) {
         case 'Put':
+          const serialized = this.serializer.serialize(entity) as Record<string, any>;
           const item = {
-            ...(entity as Record<string, any>),
+            ...serialized,
             _version: version,
             _updated_at: new Date().toISOString()
           };
