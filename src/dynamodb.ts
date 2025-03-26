@@ -317,7 +317,7 @@ export const deleteItem = async <T>(ddbClient: DynamoDBClient, tableName: string
 };
 
 const getChunks = (items: object[]): object[][] => {
-  const CHUNK_SIZE = 100;
+  const CHUNK_SIZE = 25;
   return [...Array(Math.ceil(items.length / CHUNK_SIZE)).keys()].map((index) =>
     items.slice(CHUNK_SIZE * index, CHUNK_SIZE + CHUNK_SIZE * index)
   );
